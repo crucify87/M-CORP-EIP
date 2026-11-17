@@ -186,7 +186,7 @@ function Records({ module, uid, name, db, role, navigate }: {
     || (approvalModule && filter === definition.states[0] && isFinalReview(row.status))) &&
     `${row.title} ${row.details} ${row.ownerName}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const metrics = getModuleMetrics(module, rows, today);
-  return <main className="portal-content">
+  return <main className={`portal-content ${module === 'leave' ? 'max-w-6xl' : ''}`}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <h1 className="text-xl font-bold tracking-tight">{module === 'approvals' ? '전자결재' : titles[module]}</h1>
       {module === 'attendance' && <button type="button" className="secondary inline-flex items-center gap-2" onClick={() => navigate('leave')}><CalendarDays size={16} /> 휴가 관리</button>}
@@ -213,7 +213,7 @@ function Records({ module, uid, name, db, role, navigate }: {
         <p className="mt-2 break-words text-xl font-bold tabular-nums text-[#102a7f]">{unavailable && !busy ? '—' : value}</p>
       </div>)}
     </div>}
-    {module === 'leave' && <LeaveCalendar today={today} start={leaveDates.start} end={leaveDates.end} onSelect={day => {
+    {module === 'leave' && <LeaveCalendar today={today} start={leaveDates.start} end={leaveDates.end} entries={rows} onSelect={day => {
       setLeaveDates(previous => previous.pickingEnd
         ? { start: day < previous.start ? day : previous.start, end: day < previous.start ? previous.start : day, pickingEnd: false }
         : { start: day, end: day, pickingEnd: true });
@@ -240,7 +240,11 @@ function Records({ module, uid, name, db, role, navigate }: {
         }}>퇴근하기</button>
         </div>
       </div> : <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-        <label>{definition.title}<input className="field" name="title" required maxLength={module === 'inventory' ? 64 : 120} /></label>
+        <label>{definition.title}<input className="field" name="title" list={module === 'leave' ? 'leave-types' : undefined}
+          required maxLength={module === 'inventory' ? 64 : 120} /></label>
+        {module === 'leave' && <datalist id="leave-types">
+          <option value="월차" /><option value="연차" /><option value="조퇴" />
+        </datalist>}
         {definition.value && <label>{definition.value}<input className="field" type="number" name="value" min={module === 'accounting' ? 1 : 0} max="1000000000000" required /></label>}
         {module === 'leave' ? <>
           <label>휴가 시작일<input className="field" type="date" name="date" value={leaveDates.start}
