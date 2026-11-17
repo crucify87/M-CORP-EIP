@@ -1,0 +1,6 @@
+{
+  "name": "ERP Portal",
+  "description": "전자결재, 인사·근태·휴가, 회계·비용 OCR, 영업 수주 파이프라인, 재고·물류 창고관제를 통합 지원하는 기업용 사내 업무 포털 시스템",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
