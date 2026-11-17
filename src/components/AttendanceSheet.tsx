@@ -16,7 +16,7 @@ interface Staff {
   name: string;
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
 const time = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
@@ -107,9 +107,9 @@ export function AttendanceSheet({ db, uid, name, today, canManage, rows, loading
       </table>
     </div>}
     {pageCount > 1 && <div className="mt-3 flex items-center justify-center gap-3">
-      <button type="button" className="secondary" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>이전 20명</button>
+      <button type="button" className="secondary" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>이전 {PAGE_SIZE}명</button>
       <span className="text-sm tabular-nums" aria-live="polite">{currentPage + 1} / {pageCount}</span>
-      <button type="button" className="secondary" disabled={currentPage === pageCount - 1} onClick={() => setPage(currentPage + 1)}>다음 20명</button>
+      <button type="button" className="secondary" disabled={currentPage === pageCount - 1} onClick={() => setPage(currentPage + 1)}>다음 {PAGE_SIZE}명</button>
     </div>}
   </section>;
 }
