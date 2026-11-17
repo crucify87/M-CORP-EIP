@@ -69,6 +69,11 @@
   .approval-list { @apply mt-5 p-4 sm:p-6; }
   .approval-row { @apply grid gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start; }
   .approval-actions { @apply flex flex-wrap items-center justify-start gap-2 sm:justify-end; }
+  .operation-columns, .operation-row { @apply grid-cols-[minmax(0,1fr)_minmax(8rem,auto)_minmax(9rem,14rem)] gap-4 px-2; }
+  .operation-row { @apply grid grid-cols-[minmax(0,1fr)_auto] items-start gap-y-2 py-4 md:grid-cols-[minmax(0,1fr)_minmax(8rem,auto)_minmax(9rem,14rem)]; }
+  .operation-row > div:first-child { @apply col-span-full md:col-span-1; }
+  .operation-row .approval-actions { @apply min-w-0 justify-end; }
+  .operation-value { @apply text-right font-bold tabular-nums text-[#17233b]; }
   .status-chip { @apply inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700; }
   .status-chip[data-tone="pending"] { @apply bg-amber-50 text-amber-900; }
   .status-chip[data-tone="approved"] { @apply bg-teal-50 text-teal-900; }

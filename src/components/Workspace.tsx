@@ -96,6 +96,7 @@ function Records({ module, uid, name, db, role, navigate }: {
   const [leaveDates, setLeaveDates] = useState({ start: localDate(), end: localDate(), pickingEnd: false });
   const definition = modules[module];
   const approvalModule = isApprovalModule(module);
+  const operationsList = module === 'accounting' || module === 'sales' || module === 'inventory';
   const filters = ['', ...definition.states];
   const canManage = manages(role, module);
   const today = localDate();
@@ -200,18 +201,19 @@ function Records({ module, uid, name, db, role, navigate }: {
     `${row.title} ${row.details} ${row.ownerName}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const metrics = getModuleMetrics(module, rows, today);
   return <main className={`portal-content ${module === 'leave' ? 'max-w-6xl' : ''}`}>
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
       <h1 className="text-3xl font-bold tracking-tight">{module === 'approvals' ? '전자결재' : titles[module]}</h1>
       {module === 'attendance' && <button type="button" className="secondary inline-flex items-center gap-2" onClick={() => navigate('leave')}><CalendarDays size={16} /> 휴가 관리</button>}
-      {module !== 'leave' && module !== 'attendance' && <button type="button" className="secondary inline-flex items-center gap-1.5"
-        aria-expanded={showForm} onClick={() => setShowForm(!showForm)}><Plus size={16} /> {formLabels[module]}</button>}
+      {module !== 'leave' && module !== 'attendance' && <button type="button" className={`inline-flex items-center gap-1.5 ${showForm ? 'secondary' : 'primary'}`}
+        aria-expanded={showForm} aria-controls={showForm ? 'request-form' : undefined}
+        onClick={() => setShowForm(!showForm)}>{showForm ? '작성 닫기' : <><Plus size={16} aria-hidden /> {formLabels[module]}</>}</button>}
     </div>
     {readError && <p role="alert" className="mt-4 text-sm text-red-700">기록을 불러오지 못했습니다. 연결과 접근 권한을 확인해 주세요.</p>}
     {notice && <p role="status" className="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-950">{notice}</p>}
-    {(module === 'approvals' || module === 'sales' || module === 'inventory') && <label className="search-field mb-4">
+    {(module === 'approvals' || operationsList) && <label className="search-field mb-4">
       <Search size={17} aria-hidden /><input type="search" aria-label="기록 검색" value={search}
         onChange={event => setSearch(event.target.value)}
-        placeholder={module === 'approvals' ? '제목 또는 신청자 이름 검색' : module === 'sales' ? '고객사명, 프로젝트명 검색' : '품목명 또는 SKU 코드 검색'} />
+        placeholder={module === 'inventory' ? '품목명 또는 SKU 코드 검색' : module === 'sales' ? '고객사명 또는 프로젝트명 검색' : '제목 또는 신청자 이름 검색'} />
     </label>}
     {module !== 'attendance' && module !== 'approvals' && <div className="metric-grid mb-4">
       {metrics.map(([label, value]) => <div key={label} className="panel">
@@ -224,12 +226,12 @@ function Records({ module, uid, name, db, role, navigate }: {
         ? { start: day < previous.start ? day : previous.start, end: day < previous.start ? previous.start : day, pickingEnd: false }
         : { start: day, end: day, pickingEnd: true });
     }} />}
-    {(module === 'attendance' || module === 'leave' || showForm) && <section className="panel mb-4">
+    {(module === 'attendance' || module === 'leave' || showForm) && <section id="request-form" className="panel mb-4">
       <h2 className="mb-4 font-bold">{formLabels[module]}</h2>
       {module === 'attendance' ? <div className="grid gap-4">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 p-4">
           <div>
-            <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-900">{attendance?.status ?? '출근 기록 없음'}</span>
+            <span className="status-chip" data-tone={attendance?.status === '근무 중' ? 'approved' : 'neutral'}>{attendance?.status ?? '출근 기록 없음'}</span>
             <p className="mt-2 text-sm text-slate-600">{today}</p>
           </div>
           <div className="text-right"><p className="text-2xl font-bold tabular-nums">{clockFormat.format(now)}</p>
@@ -265,7 +267,7 @@ function Records({ module, uid, name, db, role, navigate }: {
     {module === 'attendance' && <div className="metric-grid mb-4">
       {metrics.map(([label, value]) => <div key={label} className="panel"><p className="text-xs text-slate-600">{label}</p><p className="mt-2 text-xl font-bold text-[#102a7f]">{loading || readError ? '—' : value}</p></div>)}
     </div>}
-    <section className={module === 'approvals' ? 'panel approval-list' : 'mt-5'}>
+    <section className={module === 'approvals' || operationsList ? 'panel approval-list' : 'mt-5'}>
       <h2 className="mb-3 font-bold">{{
         approvals: '결재 진행함', attendance: '근태 현황', leave: '휴가 신청 및 결재 이력',
         accounting: '최근 경비 내역', sales: '최근 주요 수주 및 견적 현황', inventory: '품목별 재고',
@@ -276,7 +278,10 @@ function Records({ module, uid, name, db, role, navigate }: {
       </div>}
       {loading && <p className="mt-3 text-sm text-slate-600">불러오는 중…</p>}
       {!loading && !readError && matching.length === 0 && <p className="panel text-sm text-slate-600">{filter || search ? '조건에 맞는 기록이 없습니다.' : '등록된 기록이 없습니다.'}</p>}
-      <ul className={module === 'approvals' ? 'divide-y divide-slate-200' : 'grid gap-3'}>
+      {operationsList && matching.length > 0 && <div aria-hidden className="operation-columns hidden rounded-lg bg-slate-50 py-2 text-xs font-semibold text-slate-600 md:grid">
+        <span>항목</span><span className="text-right">{definition.value}</span><span className="text-right">작업</span>
+      </div>}
+      <ul className={module === 'approvals' || operationsList ? 'divide-y divide-slate-200' : 'grid gap-3'}>
         {matching.map(row => {
           const statuses: readonly string[] = definition.states;
           const nextSalesStatus = statuses[statuses.indexOf(row.status) + 1];
@@ -290,16 +295,17 @@ function Records({ module, uid, name, db, role, navigate }: {
             : approvalModule && row.status === statuses[1] ? 'approved' : 'neutral';
           const approvalHint = row.owner === uid ? '본인이 올린 신청은 다른 책임자가 처리합니다.'
             : awaitingFinal ? '최종관리자의 검토를 기다리고 있습니다.' : '팀장 또는 최종관리자의 검토를 기다리고 있습니다.';
-          return <li key={row.id} className={module === 'approvals' ? 'approval-row' : 'panel grid gap-3'}>
+          return <li key={row.id} className={operationsList ? 'operation-row' : module === 'approvals' ? 'approval-row' : 'panel grid gap-3'}>
             <div className="min-w-0 break-words">
               <p className="mb-2"><span className="status-chip" data-tone={statusTone}>{awaitingFinal ? `승인 대기 · ${row.status.replace('팀장', '1차')}` : row.status === '대기' ? '승인 대기' : row.status}</span></p>
               <p className="font-bold">{row.title}</p>
-              <p className="mt-1 text-sm text-slate-600">{row.ownerName} · {row.date}{row.endDate && ` ~ ${row.endDate}`}{definition.value && ` · ${numberFormat.format(row.value)}${module === 'inventory' ? '개' : '원'}`}</p>
+              <p className="mt-1 text-sm text-slate-600">{row.ownerName} · {row.date}{row.endDate && ` ~ ${row.endDate}`}</p>
               {row.details && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{row.details}</p>}
               {row.createdAt && <p className="mt-1 text-xs text-slate-500">등록 {timeFormat.format(row.createdAt.toDate())}{row.updatedAt && !row.createdAt.isEqual(row.updatedAt) && ` · 변경 ${timeFormat.format(row.updatedAt.toDate())}`}</p>}
             </div>
+            {operationsList && <p className="operation-value"><span className="sr-only">{definition.value} </span>{numberFormat.format(row.value)}{module === 'inventory' ? '개' : '원'}</p>}
             {awaitingReview && actions.length === 0 && <p className="text-sm text-slate-600">{approvalHint}</p>}
-            {(actions.length > 0 || module === 'inventory' || canDelete) && <div className={module === 'approvals' ? 'approval-actions' : 'flex flex-wrap gap-2 border-t border-slate-100 pt-3'}>
+            {(actions.length > 0 || module === 'inventory' || canDelete) && <div className={module === 'approvals' || operationsList ? 'approval-actions' : 'flex flex-wrap gap-2 border-t border-slate-100 pt-3'}>
               {actions.map(({ label, status }) => <button type="button" key={status} className={`flex-1 ${label.endsWith('반려') ? 'secondary' : 'primary'}`} disabled={unavailable} onClick={() => {
                 const firstReview = isFinalReview(status);
                 const decision = firstReview ? `1차 ${label}` : `최종 ${label}`;
