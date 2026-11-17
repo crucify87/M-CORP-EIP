@@ -176,6 +176,18 @@ function Records({ module, uid, name, db, role, navigate }: {
     });
   }
 
+  function deleteApproved(row: Row) {
+    if (!window.confirm(`“${row.title}” 승인 기록을 삭제하시겠습니까? 삭제한 기록은 복구할 수 없습니다.`)) return;
+
+    const ref = doc(db, module, row.id);
+    void save(() => runTransaction(db, async transaction => {
+      const current = await transaction.get(ref);
+      const version = current.data()?.updatedAt as Timestamp | undefined;
+      if (!version || !row.updatedAt || !version.isEqual(row.updatedAt)) throw new Error('Record changed');
+      transaction.delete(ref);
+    }), '승인 기록을 삭제했습니다.');
+  }
+
   const attendance = rows.find(row => row.owner === uid && row.date === today);
   const minutes = attendance?.createdAt ? Math.max(0, Math.floor(
     ((attendance.status === '퇴근' ? attendance.updatedAt?.toMillis() ?? now : now) - attendance.createdAt.toMillis()) / 60_000,
@@ -278,6 +290,7 @@ function Records({ module, uid, name, db, role, navigate }: {
             ? (nextSalesStatus ? Array.from(new Set([nextSalesStatus, '종료']), status => ({ label: status, status })) : [])
             : approvalActions(module, role, row.status, row.owner === uid);
           const awaitingFinal = isFinalReview(row.status);
+          const canDelete = approvalModule && role === 'admin' && row.status === statuses[1];
           const awaitingReview = approvalModule && (row.status === statuses[0] || awaitingFinal);
           const approvalHint = row.owner === uid ? '본인이 올린 신청은 다른 책임자가 처리합니다.'
             : awaitingFinal ? '최종관리자의 검토를 기다리고 있습니다.' : '팀장 또는 최종관리자의 검토를 기다리고 있습니다.';
@@ -290,13 +303,15 @@ function Records({ module, uid, name, db, role, navigate }: {
               {row.createdAt && <p className="mt-1 text-xs text-slate-500">등록 {timeFormat.format(row.createdAt.toDate())}{row.updatedAt && !row.createdAt.isEqual(row.updatedAt) && ` · 변경 ${timeFormat.format(row.updatedAt.toDate())}`}</p>}
             </div>
             {awaitingReview && actions.length === 0 && <p className="border-t border-slate-100 pt-3 text-sm text-slate-600">{approvalHint}</p>}
-            {(actions.length > 0 || module === 'inventory') && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+            {(actions.length > 0 || module === 'inventory' || canDelete) && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
               {actions.map(({ label, status }) => <button type="button" key={status} className={`flex-1 ${label.endsWith('반려') ? 'secondary' : 'primary'}`} disabled={unavailable} onClick={() => {
                 const firstReview = isFinalReview(status);
                 const decision = firstReview ? `1차 ${label}` : `최종 ${label}`;
                 if (approvalModule && !window.confirm(`“${row.title}” 신청을 ${decision}하시겠습니까?`)) return;
                 void save(() => update(row, { status }), approvalModule ? `${decision} 처리했습니다.` : `${status} 상태로 변경했습니다.`);
               }}>{label}</button>)}
+              {canDelete && <button type="button" className="secondary border-red-200 text-red-700 hover:bg-red-50"
+                disabled={unavailable} onClick={() => deleteApproved(row)}>삭제</button>}
               {module === 'inventory' && (editing === row.id
                 ? <form className="flex flex-wrap items-center gap-2" onSubmit={async event => {
                     event.preventDefault();
