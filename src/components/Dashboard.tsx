@@ -3,6 +3,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { onSnapshot, type Firestore } from 'firebase/firestore';
 import { getModuleMetrics, localDate, manages, moduleIcons, moduleRecords, modules,
   type ModuleKey, type RecordFields, type Role } from '../records';
+import { CompanyNotices } from './CompanyNotices';
 
 export function Dashboard({ db, uid, role, categories, navigate }: {
   db: Firestore; uid: string; role: Role; categories: ModuleKey[]; navigate: (module: ModuleKey) => void;
@@ -28,6 +29,7 @@ export function Dashboard({ db, uid, role, categories, navigate }: {
       {priority.map(module => <CategoryCard key={module} db={db} uid={uid} module={module}
         canManage={manages(role, module)} today={today} open={() => navigate(module)} />)}
     </div>
+    <CompanyNotices db={db} uid={uid} canManage={role === 'admin'} />
     {operations.length > 0 && <section className="mt-9">
       <h2 className="mb-4 text-lg font-bold tracking-tight">업무 현황</h2>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

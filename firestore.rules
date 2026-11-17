@@ -46,6 +46,18 @@ service cloud.firestore {
     match /employees/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
     }
+    match /notices/{id} {
+      allow read: if active();
+      allow create: if manager('admin')
+        && request.resource.data.keys().hasOnly(['title', 'body', 'createdBy', 'createdAt'])
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0 && request.resource.data.title.size() <= 120
+        && request.resource.data.body is string
+        && request.resource.data.body.size() > 0 && request.resource.data.body.size() <= 4000
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow delete: if manager('admin');
+    }
     match /approvals/{id} {
       allow read: if active() && (mine(resource.data) || manager('manager'));
       allow create: if createRecord('대기');
