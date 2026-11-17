@@ -50,19 +50,19 @@ service cloud.firestore {
       allow read: if active() && (mine(resource.data) || manager('manager'));
       allow create: if createRecord('대기');
       allow update: if active() && review('대기', '승인');
-      allow delete: if manager('admin') && resource.data.status == '승인';
+      allow delete: if manager('admin') && resource.data.status in ['승인', '반려'];
     }
     match /leave/{id} {
       allow read: if active() && (mine(resource.data) || manager('manager'));
       allow create: if createRecord('대기') && request.resource.data.endDate != '';
       allow update: if active() && review('대기', '승인');
-      allow delete: if manager('admin') && resource.data.status == '승인';
+      allow delete: if manager('admin') && resource.data.status in ['승인', '반려'];
     }
     match /accounting/{id} {
       allow read: if active() && (mine(resource.data) || profile().role in ['finance', 'manager', 'admin']);
       allow create: if createRecord('정산 대기') && request.resource.data.value > 0;
       allow update: if active() && review('정산 대기', '정산 완료');
-      allow delete: if manager('admin') && resource.data.status == '정산 완료';
+      allow delete: if manager('admin') && resource.data.status in ['정산 완료', '반려'];
     }
     match /sales/{id} {
       allow read: if manager('sales');
