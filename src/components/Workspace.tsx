@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, Building2, CalendarDays, House, LogOut, Plus, Search } from 'lucide-react';
+import { ArrowLeft, Building2, CalendarDays, Ellipsis, House, LogOut, Plus, Search } from 'lucide-react';
 import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp,
   type Firestore, type Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
@@ -43,12 +43,12 @@ export function Workspace({ user, employee, db, onLogout }: {
     setSelected(key);
     window.scrollTo(0, 0);
   }
-  return <div className="portal">
+  return <div className="portal workspace-shell">
       <header className="portal-header">
         <div className="flex min-w-0 items-center gap-2">
           {module === 'leave' && <button type="button" aria-label="인사·근태로 돌아가기" className="icon-button" onClick={() => navigate('attendance')}><ArrowLeft size={18} /></button>}
-          <Building2 size={21} aria-hidden />
-          <span className="font-bold tracking-tight">EIP Portal</span>
+          <span className="workspace-brand"><Building2 size={19} aria-hidden /></span>
+          <span className="font-bold tracking-tight">M CORP EIP</span>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate rounded-full bg-[#e7ebfa] px-3 py-1 text-xs font-semibold text-[#102a7f]">{employee.name}</span>
@@ -61,9 +61,11 @@ export function Workspace({ user, employee, db, onLogout }: {
         <button type="button" aria-current={tab === 'home' ? 'page' : undefined} onClick={() => navigate('home')}>
           <House className="size-5" aria-hidden /> 홈
         </button>
-        {visibleModules.filter(key => key !== 'leave').map(key => {
+        {visibleModules.map(key => {
           const Icon = moduleIcons[key];
-          return <button key={key} type="button" aria-current={tab === key ? 'page' : undefined}
+          return <button key={key} type="button" className={key === 'leave' ? 'desktop-nav-item' : undefined}
+            aria-current={(module === 'leave' ? key === 'leave' : tab === key) ? 'page' : undefined}
+            data-mobile-current={tab === key || undefined}
             onClick={() => navigate(key)}>
             <Icon className="size-5" aria-hidden /> {navLabels[key]}
           </button>;
@@ -87,7 +89,7 @@ function Records({ module, uid, name, db, role, navigate }: {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
-  const [filter, setFilter] = useState('');
+  const [filter, setFilter] = useState(module === 'approvals' ? modules.approvals.states[0] : '');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -193,33 +195,25 @@ function Records({ module, uid, name, db, role, navigate }: {
     ((attendance.status === '퇴근' ? attendance.updatedAt?.toMillis() ?? now : now) - attendance.createdAt.toMillis()) / 60_000,
   )) : 0;
   const unavailable = busy || loading || readError;
-  const pending = rows.filter(row => row.status === definition.states[0] || (approvalModule && isFinalReview(row.status)));
   const matching = rows.filter(row => (!filter || row.status === filter
     || (approvalModule && filter === definition.states[0] && isFinalReview(row.status))) &&
     `${row.title} ${row.details} ${row.ownerName}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const metrics = getModuleMetrics(module, rows, today);
   return <main className={`portal-content ${module === 'leave' ? 'max-w-6xl' : ''}`}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-xl font-bold tracking-tight">{module === 'approvals' ? '전자결재' : titles[module]}</h1>
+      <h1 className="text-3xl font-bold tracking-tight">{module === 'approvals' ? '전자결재' : titles[module]}</h1>
       {module === 'attendance' && <button type="button" className="secondary inline-flex items-center gap-2" onClick={() => navigate('leave')}><CalendarDays size={16} /> 휴가 관리</button>}
       {module !== 'leave' && module !== 'attendance' && <button type="button" className="secondary inline-flex items-center gap-1.5"
         aria-expanded={showForm} onClick={() => setShowForm(!showForm)}><Plus size={16} /> {formLabels[module]}</button>}
     </div>
     {readError && <p role="alert" className="mt-4 text-sm text-red-700">기록을 불러오지 못했습니다. 연결과 접근 권한을 확인해 주세요.</p>}
     {notice && <p role="status" className="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-950">{notice}</p>}
-    {(module === 'sales' || module === 'inventory') && <label className="search-field mb-4">
+    {(module === 'approvals' || module === 'sales' || module === 'inventory') && <label className="search-field mb-4">
       <Search size={17} aria-hidden /><input type="search" aria-label="기록 검색" value={search}
         onChange={event => setSearch(event.target.value)}
-        placeholder={module === 'sales' ? '고객사명, 프로젝트명 검색' : '품목명 또는 SKU 코드 검색'} />
+        placeholder={module === 'approvals' ? '제목 또는 신청자 이름 검색' : module === 'sales' ? '고객사명, 프로젝트명 검색' : '품목명 또는 SKU 코드 검색'} />
     </label>}
-    {module === 'approvals' && !loading && !readError && pending.length > 0 && <section className="panel mb-4 flex items-center justify-between gap-3 border-l-4 border-l-[#173895]">
-      <div><p className="text-xs font-semibold text-[#173895]">전자결재</p><h2 className="mt-1 font-bold">승인 대기 {pending.length}건</h2></div>
-      <button type="button" className="primary" onClick={() => {
-        setFilter(definition.states[0]);
-        document.getElementById('record-list')?.scrollIntoView({ block: 'start' });
-      }}>대기 문서 보기</button>
-    </section>}
-    {module !== 'attendance' && <div className="metric-grid mb-4">
+    {module !== 'attendance' && module !== 'approvals' && <div className="metric-grid mb-4">
       {metrics.map(([label, value]) => <div key={label} className="panel">
         <p className="text-xs text-slate-600">{label}</p>
         <p className="mt-2 break-words text-xl font-bold tabular-nums text-[#102a7f]">{unavailable && !busy ? '—' : value}</p>
@@ -271,18 +265,18 @@ function Records({ module, uid, name, db, role, navigate }: {
     {module === 'attendance' && <div className="metric-grid mb-4">
       {metrics.map(([label, value]) => <div key={label} className="panel"><p className="text-xs text-slate-600">{label}</p><p className="mt-2 text-xl font-bold text-[#102a7f]">{loading || readError ? '—' : value}</p></div>)}
     </div>}
-    <section id="record-list" className="mt-5 scroll-mt-20">
+    <section className={module === 'approvals' ? 'panel approval-list' : 'mt-5'}>
       <h2 className="mb-3 font-bold">{{
         approvals: '결재 진행함', attendance: '근태 현황', leave: '휴가 신청 및 결재 이력',
         accounting: '최근 경비 내역', sales: '최근 주요 수주 및 견적 현황', inventory: '품목별 재고',
       }[module]} <span className="ml-1 text-xs font-medium text-slate-600">총 {matching.length}건</span></h2>
       {definition.states.length > 1 && <div className="status-tabs mb-3" aria-label="상태 필터">
-        {filters.map(status => <button type="button" key={status} aria-pressed={filter === status}
+        {(module === 'approvals' ? [...definition.states, ''] : filters).map(status => <button type="button" key={status} aria-pressed={filter === status}
           onClick={() => setFilter(status)}>{status === '대기' ? '승인 대기' : status || '전체'}{module === 'sales' && status && ` ${rows.filter(row => row.status === status).length}`}</button>)}
       </div>}
       {loading && <p className="mt-3 text-sm text-slate-600">불러오는 중…</p>}
       {!loading && !readError && matching.length === 0 && <p className="panel text-sm text-slate-600">{filter || search ? '조건에 맞는 기록이 없습니다.' : '등록된 기록이 없습니다.'}</p>}
-      <ul className="grid gap-3">
+      <ul className={module === 'approvals' ? 'divide-y divide-slate-200' : 'grid gap-3'}>
         {matching.map(row => {
           const statuses: readonly string[] = definition.states;
           const nextSalesStatus = statuses[statuses.indexOf(row.status) + 1];
@@ -292,26 +286,34 @@ function Records({ module, uid, name, db, role, navigate }: {
           const awaitingFinal = isFinalReview(row.status);
           const canDelete = approvalModule && role === 'admin' && (row.status === statuses[1] || row.status === '반려');
           const awaitingReview = approvalModule && (row.status === statuses[0] || awaitingFinal);
+          const statusTone = awaitingReview ? 'pending' : row.status === '반려' ? 'rejected'
+            : approvalModule && row.status === statuses[1] ? 'approved' : 'neutral';
           const approvalHint = row.owner === uid ? '본인이 올린 신청은 다른 책임자가 처리합니다.'
             : awaitingFinal ? '최종관리자의 검토를 기다리고 있습니다.' : '팀장 또는 최종관리자의 검토를 기다리고 있습니다.';
-          return <li key={row.id} className="panel grid gap-3">
+          return <li key={row.id} className={module === 'approvals' ? 'approval-row' : 'panel grid gap-3'}>
             <div className="min-w-0 break-words">
-              <p className="mb-2"><span className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">{awaitingFinal ? `승인 대기 · ${row.status.replace('팀장', '1차')}` : row.status === '대기' ? '승인 대기' : row.status}</span></p>
+              <p className="mb-2"><span className="status-chip" data-tone={statusTone}>{awaitingFinal ? `승인 대기 · ${row.status.replace('팀장', '1차')}` : row.status === '대기' ? '승인 대기' : row.status}</span></p>
               <p className="font-bold">{row.title}</p>
               <p className="mt-1 text-sm text-slate-600">{row.ownerName} · {row.date}{row.endDate && ` ~ ${row.endDate}`}{definition.value && ` · ${numberFormat.format(row.value)}${module === 'inventory' ? '개' : '원'}`}</p>
               {row.details && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{row.details}</p>}
               {row.createdAt && <p className="mt-1 text-xs text-slate-500">등록 {timeFormat.format(row.createdAt.toDate())}{row.updatedAt && !row.createdAt.isEqual(row.updatedAt) && ` · 변경 ${timeFormat.format(row.updatedAt.toDate())}`}</p>}
             </div>
-            {awaitingReview && actions.length === 0 && <p className="border-t border-slate-100 pt-3 text-sm text-slate-600">{approvalHint}</p>}
-            {(actions.length > 0 || module === 'inventory' || canDelete) && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+            {awaitingReview && actions.length === 0 && <p className="text-sm text-slate-600">{approvalHint}</p>}
+            {(actions.length > 0 || module === 'inventory' || canDelete) && <div className={module === 'approvals' ? 'approval-actions' : 'flex flex-wrap gap-2 border-t border-slate-100 pt-3'}>
               {actions.map(({ label, status }) => <button type="button" key={status} className={`flex-1 ${label.endsWith('반려') ? 'secondary' : 'primary'}`} disabled={unavailable} onClick={() => {
                 const firstReview = isFinalReview(status);
                 const decision = firstReview ? `1차 ${label}` : `최종 ${label}`;
                 if (approvalModule && !window.confirm(`“${row.title}” 신청을 ${decision}하시겠습니까?`)) return;
                 void save(() => update(row, { status }), approvalModule ? `${decision} 처리했습니다.` : `${status} 상태로 변경했습니다.`);
               }}>{label}</button>)}
-              {canDelete && <button type="button" className="secondary border-red-200 text-red-700 hover:bg-red-50"
-                disabled={unavailable} onClick={() => deleteRequest(row)}>삭제</button>}
+              {canDelete && <details className="record-menu">
+                <summary className="icon-button" aria-label={`${row.title} 옵션`}><Ellipsis size={20} aria-hidden /></summary>
+                <button type="button" className="secondary text-red-700 hover:bg-red-50"
+                  disabled={unavailable} onClick={event => {
+                    event.currentTarget.closest('details')?.removeAttribute('open');
+                    deleteRequest(row);
+                  }}>삭제</button>
+              </details>}
               {module === 'inventory' && (editing === row.id
                 ? <form className="flex flex-wrap items-center gap-2" onSubmit={async event => {
                     event.preventDefault();
