@@ -44,8 +44,14 @@ service cloud.firestore {
     }
 
     match /employees/{uid} {
-      allow get: if signedIn() && request.auth.uid == uid;
+      allow get: if (signedIn() && request.auth.uid == uid) || (manager('admin') && resource.data.active == true);
       allow list: if manager('manager') && resource.data.active == true;
+      allow update: if manager('admin')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['annualDays', 'monthlyDays'])
+        && request.resource.data.annualDays is int
+        && request.resource.data.annualDays >= 0 && request.resource.data.annualDays <= 10000
+        && request.resource.data.monthlyDays is int
+        && request.resource.data.monthlyDays >= 0 && request.resource.data.monthlyDays <= 10000;
     }
     match /notices/{id} {
       allow read: if active();

@@ -53,7 +53,7 @@ export function LeaveCalendar({ today, start, end, entries, onSelect }: {
             {requests.length > 0 && <span className="max-w-full truncate rounded-full bg-slate-100 px-0.5 text-[10px] text-slate-700 sm:hidden">{requests.length}건</span>}
             {requests.map(entry => <span key={entry.id}
               className={`hidden w-full break-words rounded px-1.5 py-1 text-xs leading-snug sm:block ${entry.status === '승인' ? 'bg-teal-50 text-teal-900' : 'bg-amber-50 text-amber-950'}`}>
-              {entry.ownerName} · {entry.title}
+              {entry.status === '승인' && <span aria-hidden>✓ </span>}{entry.ownerName} · {entry.title}
             </span>)}
           </button>;
         })}

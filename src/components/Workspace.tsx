@@ -4,7 +4,7 @@ import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp,
   type Firestore, type Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import { approvalActions, getModuleMetrics, isApprovalModule, isFinalReview, localDate, manages, moduleIcons, moduleKeys, moduleRecords, modules,
-  type Employee, type ModuleKey, type RecordFields, type Role } from '../records';
+  type Employee, type ModuleKey, type RecordFields } from '../records';
 import { Dashboard } from './Dashboard';
 import { AttendanceSheet } from './AttendanceSheet';
 import { LeaveCalendar } from './LeaveCalendar';
@@ -76,14 +76,15 @@ export function Workspace({ user, employee, db, onLogout }: {
       {module === 'home'
         ? <Dashboard key={employee.role} db={db} uid={user.uid} role={employee.role} categories={visibleModules} navigate={navigate} />
         : <Records key={`${module}:${employee.role}`} module={module} uid={user.uid} name={employee.name} db={db}
-            role={employee.role} navigate={navigate} />}
+            employee={employee} navigate={navigate} />}
   </div>;
 }
 
-function Records({ module, uid, name, db, role, navigate }: {
-  module: ModuleKey; uid: string; name: string; db: Firestore; role: Role;
+function Records({ module, uid, name, db, employee, navigate }: {
+  module: ModuleKey; uid: string; name: string; db: Firestore; employee: Employee;
   navigate: (module: ModuleKey) => void;
 }) {
+  const { role } = employee;
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [readError, setReadError] = useState(false);
@@ -268,7 +269,7 @@ function Records({ module, uid, name, db, role, navigate }: {
     {module === 'attendance' && <div className="metric-grid mb-4">
       {metrics.map(([label, value]) => <div key={label} className="panel"><p className="text-xs text-slate-600">{label}</p><p className="mt-2 text-xl font-bold text-[#102a7f]">{loading || readError ? '—' : value}</p></div>)}
     </div>}
-    {module === 'attendance' && <AttendanceSheet db={db} uid={uid} name={name} today={today}
+    {module === 'attendance' && <AttendanceSheet db={db} uid={uid} employee={employee} today={today}
       canManage={canManage} rows={rows} loading={loading} readError={readError} />}
     <section className={module === 'approvals' || operationsList ? 'panel approval-list' : 'mt-5'}>
       <h2 className="mb-3 font-bold">{{

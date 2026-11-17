@@ -11,6 +11,8 @@ export interface Employee {
   name: string;
   role: Role;
   active: boolean;
+  annualDays?: number;
+  monthlyDays?: number;
 }
 
 export interface RecordFields {
