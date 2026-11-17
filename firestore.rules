@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function profile() {
+      return get(/databases/$(database)/documents/employees/$(request.auth.uid)).data;
+    }
+    function active() { return signedIn() && profile().active == true; }
+    function manager(role) { return active() && profile().role in ['admin', role]; }
+    function mine(row) { return row.owner == request.auth.uid; }
+    function dateStamp(date) {
+      let parts = date.split('-');
+      return timestamp.date(int(parts[0]), int(parts[1]), int(parts[2]));
+    }
+    function validRecord(row) {
+      return row.keys().hasAll(['owner', 'ownerName', 'title', 'details', 'date', 'endDate', 'value', 'status',
+        'createdAt', 'updatedAt', 'updatedBy'])
+        && row.keys().hasOnly(['owner', 'ownerName', 'title', 'details', 'date', 'endDate', 'value', 'status',
+          'createdAt', 'updatedAt', 'updatedBy'])
+        && row.title is string && row.title.size() > 0 && row.title.size() <= 120
+        && row.details is string && row.details.size() <= 4000
+        && row.date is string && row.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+        && row.endDate is string && (row.endDate == '' ||
+          (row.endDate.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') && row.endDate >= row.date))
+        && row.value is int && row.value >= 0 && row.value <= 1000000000000
+        && row.updatedAt == request.time && row.updatedBy == request.auth.uid;
+    }
+    function createRecord(status) {
+      let row = request.resource.data;
+      return active() && validRecord(row) && mine(row) &&
+        row.ownerName == profile().name && row.createdAt == request.time && row.status == status;
+    }
+    function changeStatus(initial, results) {
+      let row = request.resource.data;
+      return resource.data.status == initial && row.status in results
+        && validRecord(row)
+        && row.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy']);
+    }
+
+    match /employees/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+    }
+    match /approvals/{id} {
+      allow read: if active() && (mine(resource.data) || manager('manager'));
+      allow create: if createRecord('대기');
+      allow update: if manager('manager') && !mine(resource.data) && changeStatus('대기', ['승인', '반려']);
+    }
+    match /leave/{id} {
+      allow read: if active() && (mine(resource.data) || manager('manager'));
+      allow create: if createRecord('대기') && request.resource.data.endDate != '';
+      allow update: if manager('manager') && !mine(resource.data) && changeStatus('대기', ['승인', '반려']);
+    }
+    match /accounting/{id} {
+      allow read: if active() && (mine(resource.data) || manager('finance'));
+      allow create: if createRecord('정산 대기') && request.resource.data.value > 0;
+      allow update: if manager('finance') && !mine(resource.data) && changeStatus('정산 대기', ['정산 완료', '반려']);
+    }
+    match /sales/{id} {
+      allow read: if manager('sales');
+      allow create: if manager('sales') && createRecord('문의');
+      allow update: if manager('sales') && validRecord(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy'])
+        && ((resource.data.status == '문의' && request.resource.data.status in ['견적', '종료'])
+          || (resource.data.status == '견적' && request.resource.data.status in ['수주', '종료'])
+          || (resource.data.status == '수주' && request.resource.data.status == '종료'));
+    }
+    match /inventory/{id} {
+      allow read: if manager('warehouse');
+      allow create: if manager('warehouse') && createRecord('관리 중')
+        && request.resource.data.title == id && id.matches('[A-Z0-9_-]{1,64}');
+      allow update: if manager('warehouse') && validRecord(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['value', 'updatedAt', 'updatedBy']);
+    }
+    match /attendance/{id} {
+      allow get: if active() && (id.matches(request.auth.uid + '_[0-9-]+') || manager('manager'));
+      allow list: if active() && (mine(resource.data) || manager('manager'));
+      allow create: if createRecord('근무 중') && id == request.auth.uid + '_' + request.resource.data.date
+        && dateStamp(request.resource.data.date) == (request.time + duration.value(9, 'h')).date()
+        && request.resource.data.title == '출근' && request.resource.data.value == 0;
+      allow update: if active() && mine(resource.data) && changeStatus('근무 중', ['퇴근']);
+    }
+  }
+}
