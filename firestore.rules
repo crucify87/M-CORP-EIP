@@ -36,6 +36,14 @@ service cloud.firestore {
         && validRecord(row)
         && row.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy']);
     }
+    function review(initial, approved) {
+      return !mine(resource.data) && (
+        (manager('manager') && changeStatus(initial, ['팀장 승인', '팀장 반려']))
+        || (manager('admin') && resource.data.updatedBy != request.auth.uid
+          && (changeStatus('팀장 승인', [approved, '반려'])
+            || changeStatus('팀장 반려', [approved, '반려'])))
+      );
+    }
 
     match /employees/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
@@ -43,17 +51,17 @@ service cloud.firestore {
     match /approvals/{id} {
       allow read: if active() && (mine(resource.data) || manager('manager'));
       allow create: if createRecord('대기');
-      allow update: if manager('manager') && !mine(resource.data) && changeStatus('대기', ['승인', '반려']);
+      allow update: if active() && review('대기', '승인');
     }
     match /leave/{id} {
       allow read: if active() && (mine(resource.data) || manager('manager'));
       allow create: if createRecord('대기') && request.resource.data.endDate != '';
-      allow update: if manager('manager') && !mine(resource.data) && changeStatus('대기', ['승인', '반려']);
+      allow update: if active() && review('대기', '승인');
     }
     match /accounting/{id} {
       allow read: if active() && (mine(resource.data) || profile().role in ['finance', 'manager', 'admin']);
       allow create: if createRecord('정산 대기') && request.resource.data.value > 0;
-      allow update: if manager('manager') && !mine(resource.data) && changeStatus('정산 대기', ['정산 완료', '반려']);
+      allow update: if active() && review('정산 대기', '정산 완료');
     }
     match /sales/{id} {
       allow read: if manager('sales');

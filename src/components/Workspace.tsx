@@ -3,7 +3,7 @@ import { ArrowLeft, Building2, CalendarDays, House, LogOut, Plus, Search } from 
 import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp,
   type Firestore, type Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
-import { approvalActions, getModuleMetrics, localDate, manages, moduleIcons, moduleKeys, moduleRecords, modules,
+import { approvalActions, getModuleMetrics, isApprovalModule, isFinalReview, localDate, manages, moduleIcons, moduleKeys, moduleRecords, modules,
   type Employee, type ModuleKey, type RecordFields, type Role } from '../records';
 import { Dashboard } from './Dashboard';
 import { LeaveCalendar } from './LeaveCalendar';
@@ -12,6 +12,7 @@ interface Row extends RecordFields {
   id: string;
   owner: string;
   ownerName: string;
+  updatedBy: string;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -93,6 +94,8 @@ function Records({ module, uid, name, db, role, navigate }: {
   const [now, setNow] = useState(() => Date.now());
   const [leaveDates, setLeaveDates] = useState({ start: localDate(), end: localDate(), pickingEnd: false });
   const definition = modules[module];
+  const approvalModule = isApprovalModule(module);
+  const filters = approvalModule ? ['', ...definition.states.slice(0, 1), 'final-review', ...definition.states.slice(1)] : ['', ...definition.states];
   const canManage = manages(role, module);
   const today = localDate();
 
@@ -179,7 +182,7 @@ function Records({ module, uid, name, db, role, navigate }: {
     ((attendance.status === '퇴근' ? attendance.updatedAt?.toMillis() ?? now : now) - attendance.createdAt.toMillis()) / 60_000,
   )) : 0;
   const unavailable = busy || loading || readError;
-  const matching = rows.filter(row => (!filter || row.status === filter) &&
+  const matching = rows.filter(row => (!filter || (filter === 'final-review' ? isFinalReview(row.status) : row.status === filter)) &&
     `${row.title} ${row.details} ${row.ownerName}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const pending = rows.filter(row => row.status === definition.states[0]);
   const metrics = getModuleMetrics(module, rows, today);
@@ -258,8 +261,8 @@ function Records({ module, uid, name, db, role, navigate }: {
         accounting: '최근 경비 내역', sales: '최근 주요 수주 및 견적 현황', inventory: '품목별 재고',
       }[module]} <span className="ml-1 text-xs font-medium text-slate-600">총 {matching.length}건</span></h2>
       {definition.states.length > 1 && <div className="status-tabs mb-3" aria-label="상태 필터">
-        {['', ...definition.states].map(status => <button type="button" key={status} aria-pressed={filter === status}
-          onClick={() => setFilter(status)}>{status === '대기' ? '승인 대기' : status || '전체'}{module === 'sales' && status && ` ${rows.filter(row => row.status === status).length}`}</button>)}
+        {filters.map(status => <button type="button" key={status} aria-pressed={filter === status}
+          onClick={() => setFilter(status)}>{status === 'final-review' ? '최종 검토 대기' : status === '대기' ? '승인 대기' : status || '전체'}{module === 'sales' && status && ` ${rows.filter(row => row.status === status).length}`}</button>)}
       </div>}
       {loading && <p className="mt-3 text-sm text-slate-600">불러오는 중…</p>}
       {!loading && !readError && matching.length === 0 && <p className="panel text-sm text-slate-600">{filter || search ? '조건에 맞는 기록이 없습니다.' : '등록된 기록이 없습니다.'}</p>}
@@ -269,18 +272,24 @@ function Records({ module, uid, name, db, role, navigate }: {
           const nextSalesStatus = statuses[statuses.indexOf(row.status) + 1];
           const actions = module === 'sales'
             ? (nextSalesStatus ? Array.from(new Set([nextSalesStatus, '종료']), status => ({ label: status, status })) : [])
-            : approvalActions(module, role, row.status, row.owner === uid);
+            : approvalActions(module, role, row.status, row.owner === uid, row.updatedBy === uid);
+          const awaitingFinal = isFinalReview(row.status);
+          const awaitingReview = approvalModule && (row.status === statuses[0] || awaitingFinal);
+          const approvalHint = row.owner === uid ? '본인이 올린 신청은 다른 책임자가 처리합니다.'
+            : awaitingFinal && row.updatedBy === uid ? '다른 최종관리자의 검토를 기다리고 있습니다.'
+            : awaitingFinal ? '최종관리자의 검토를 기다리고 있습니다.' : '팀장 또는 최종관리자의 검토를 기다리고 있습니다.';
           return <li key={row.id} className="panel grid gap-3">
             <div className="min-w-0 break-words">
-              <p className="mb-2"><span className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">{row.status === '대기' ? '승인 대기' : row.status}</span></p>
+              <p className="mb-2"><span className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">{awaitingFinal ? `최종 검토 대기 · ${row.status}` : row.status === '대기' ? '승인 대기' : row.status}</span></p>
               <p className="font-bold">{row.title}</p>
               <p className="mt-1 text-sm text-slate-600">{row.ownerName} · {row.date}{row.endDate && ` ~ ${row.endDate}`}{definition.value && ` · ${numberFormat.format(row.value)}${module === 'inventory' ? '개' : '원'}`}</p>
               {row.details && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{row.details}</p>}
               {row.createdAt && <p className="mt-1 text-xs text-slate-500">등록 {timeFormat.format(row.createdAt.toDate())}{row.updatedAt && !row.createdAt.isEqual(row.updatedAt) && ` · 변경 ${timeFormat.format(row.updatedAt.toDate())}`}</p>}
             </div>
+            {awaitingReview && actions.length === 0 && <p className="border-t border-slate-100 pt-3 text-sm text-slate-600">{approvalHint}</p>}
             {(actions.length > 0 || module === 'inventory') && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-              {actions.map(({ label, status }) => <button type="button" key={status} className={`flex-1 ${status === '반려' ? 'secondary' : 'primary'}`} disabled={unavailable} onClick={() => {
-                void save(() => update(row, { status }), `${status} 상태로 변경했습니다.`);
+              {actions.map(({ label, status }) => <button type="button" key={status} className={`flex-1 ${label.endsWith('반려') ? 'secondary' : 'primary'}`} disabled={unavailable} onClick={() => {
+                void save(() => update(row, { status }), isFinalReview(status) ? '1차 결재를 저장하고 최종 검토로 넘겼습니다.' : `${status} 상태로 변경했습니다.`);
               }}>{label}</button>)}
               {module === 'inventory' && (editing === row.id
                 ? <form className="flex flex-wrap items-center gap-2" onSubmit={async event => {
