@@ -32,7 +32,16 @@ export const modules = {
 } as const;
 
 export function manages(role: Role, module: ModuleKey) {
-  return role === 'admin' || role === modules[module].access;
+  return role === 'admin' || role === modules[module].access || (module === 'accounting' && role === 'manager');
+}
+
+export function approvalActions(module: ModuleKey, role: Role, status: string, isOwner: boolean) {
+  if (module !== 'approvals' && module !== 'leave' && module !== 'accounting') return [];
+  if (isOwner || (role !== 'manager' && role !== 'admin') || status !== modules[module].states[0]) return [];
+  return [
+    { label: '반려', status: '반려' },
+    { label: '승인', status: modules[module].states[1] },
+  ];
 }
 
 export function moduleRecords(db: Firestore, module: ModuleKey, uid: string, canManage: boolean) {

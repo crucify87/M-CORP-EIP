@@ -3,8 +3,8 @@ import { ArrowLeft, Building2, CalendarDays, House, LogOut, Plus, Search } from 
 import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp,
   type Firestore, type Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
-import { getModuleMetrics, localDate, manages, moduleIcons, moduleKeys, moduleRecords, modules,
-  type Employee, type ModuleKey, type RecordFields } from '../records';
+import { approvalActions, getModuleMetrics, localDate, manages, moduleIcons, moduleKeys, moduleRecords, modules,
+  type Employee, type ModuleKey, type RecordFields, type Role } from '../records';
 import { Dashboard } from './Dashboard';
 import { LeaveCalendar } from './LeaveCalendar';
 
@@ -73,12 +73,12 @@ export function Workspace({ user, employee, db, onLogout }: {
       {module === 'home'
         ? <Dashboard key={employee.role} db={db} uid={user.uid} role={employee.role} categories={visibleModules} navigate={navigate} />
         : <Records key={`${module}:${employee.role}`} module={module} uid={user.uid} name={employee.name} db={db}
-            canManage={manages(employee.role, module)} navigate={navigate} />}
+            role={employee.role} navigate={navigate} />}
   </div>;
 }
 
-function Records({ module, uid, name, db, canManage, navigate }: {
-  module: ModuleKey; uid: string; name: string; db: Firestore; canManage: boolean;
+function Records({ module, uid, name, db, role, navigate }: {
+  module: ModuleKey; uid: string; name: string; db: Firestore; role: Role;
   navigate: (module: ModuleKey) => void;
 }) {
   const [rows, setRows] = useState<Row[]>([]);
@@ -93,6 +93,7 @@ function Records({ module, uid, name, db, canManage, navigate }: {
   const [now, setNow] = useState(() => Date.now());
   const [leaveDates, setLeaveDates] = useState({ start: localDate(), end: localDate(), pickingEnd: false });
   const definition = modules[module];
+  const canManage = manages(role, module);
   const today = localDate();
 
   useEffect(() => {
@@ -258,27 +259,29 @@ function Records({ module, uid, name, db, canManage, navigate }: {
       }[module]} <span className="ml-1 text-xs font-medium text-slate-600">총 {matching.length}건</span></h2>
       {definition.states.length > 1 && <div className="status-tabs mb-3" aria-label="상태 필터">
         {['', ...definition.states].map(status => <button type="button" key={status} aria-pressed={filter === status}
-          onClick={() => setFilter(status)}>{status || '전체'}{module === 'sales' && status && ` ${rows.filter(row => row.status === status).length}`}</button>)}
+          onClick={() => setFilter(status)}>{status === '대기' ? '승인 대기' : status || '전체'}{module === 'sales' && status && ` ${rows.filter(row => row.status === status).length}`}</button>)}
       </div>}
       {loading && <p className="mt-3 text-sm text-slate-600">불러오는 중…</p>}
       {!loading && !readError && matching.length === 0 && <p className="panel text-sm text-slate-600">{filter || search ? '조건에 맞는 기록이 없습니다.' : '등록된 기록이 없습니다.'}</p>}
       <ul className="grid gap-3">
         {matching.map(row => {
           const statuses: readonly string[] = definition.states;
-          const allowed = module === 'sales' ? (row.status === '종료' ? [] : [...new Set([statuses[statuses.indexOf(row.status) + 1], '종료'])])
-            : (canManage && row.owner !== uid && row.status === statuses[0] && module !== 'attendance' ? statuses.slice(1) : []);
+          const nextSalesStatus = statuses[statuses.indexOf(row.status) + 1];
+          const actions = module === 'sales'
+            ? (nextSalesStatus ? Array.from(new Set([nextSalesStatus, '종료']), status => ({ label: status, status })) : [])
+            : approvalActions(module, role, row.status, row.owner === uid);
           return <li key={row.id} className="panel grid gap-3">
             <div className="min-w-0 break-words">
-              <p className="mb-2"><span className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">{row.status}</span></p>
+              <p className="mb-2"><span className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">{row.status === '대기' ? '승인 대기' : row.status}</span></p>
               <p className="font-bold">{row.title}</p>
               <p className="mt-1 text-sm text-slate-600">{row.ownerName} · {row.date}{row.endDate && ` ~ ${row.endDate}`}{definition.value && ` · ${numberFormat.format(row.value)}${module === 'inventory' ? '개' : '원'}`}</p>
               {row.details && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{row.details}</p>}
               {row.createdAt && <p className="mt-1 text-xs text-slate-500">등록 {timeFormat.format(row.createdAt.toDate())}{row.updatedAt && !row.createdAt.isEqual(row.updatedAt) && ` · 변경 ${timeFormat.format(row.updatedAt.toDate())}`}</p>}
             </div>
-            {(allowed.length > 0 || module === 'inventory') && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-              {allowed.map(status => <button key={status} className={`flex-1 ${status === '반려' ? 'secondary' : 'primary'}`} disabled={unavailable} onClick={() => {
+            {(actions.length > 0 || module === 'inventory') && <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+              {actions.map(({ label, status }) => <button type="button" key={status} className={`flex-1 ${status === '반려' ? 'secondary' : 'primary'}`} disabled={unavailable} onClick={() => {
                 void save(() => update(row, { status }), `${status} 상태로 변경했습니다.`);
-              }}>{status}</button>)}
+              }}>{label}</button>)}
               {module === 'inventory' && (editing === row.id
                 ? <form className="flex flex-wrap items-center gap-2" onSubmit={async event => {
                     event.preventDefault();

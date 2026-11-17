@@ -51,9 +51,9 @@ service cloud.firestore {
       allow update: if manager('manager') && !mine(resource.data) && changeStatus('대기', ['승인', '반려']);
     }
     match /accounting/{id} {
-      allow read: if active() && (mine(resource.data) || manager('finance'));
+      allow read: if active() && (mine(resource.data) || profile().role in ['finance', 'manager', 'admin']);
       allow create: if createRecord('정산 대기') && request.resource.data.value > 0;
-      allow update: if manager('finance') && !mine(resource.data) && changeStatus('정산 대기', ['정산 완료', '반려']);
+      allow update: if manager('manager') && !mine(resource.data) && changeStatus('정산 대기', ['정산 완료', '반려']);
     }
     match /sales/{id} {
       allow read: if manager('sales');
