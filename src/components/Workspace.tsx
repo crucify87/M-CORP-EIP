@@ -1,9 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowLeft, Building2, CalendarDays, ClipboardCheck, Clock3, Landmark, LogOut, Package, Plus, Search, TrendingUp } from 'lucide-react';
-import { addDoc, collection, doc, onSnapshot, query, runTransaction, serverTimestamp, where,
+import { ArrowLeft, Building2, CalendarDays, House, LogOut, Plus, Search } from 'lucide-react';
+import { addDoc, collection, doc, onSnapshot, runTransaction, serverTimestamp,
   type Firestore, type Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
-import { localDate, manages, moduleKeys, modules, type Employee, type ModuleKey, type RecordFields } from '../records';
+import { getModuleMetrics, localDate, manages, moduleIcons, moduleKeys, moduleRecords, modules,
+  type Employee, type ModuleKey, type RecordFields } from '../records';
+import { Dashboard } from './Dashboard';
 import { LeaveCalendar } from './LeaveCalendar';
 
 interface Row extends RecordFields {
@@ -14,8 +16,6 @@ interface Row extends RecordFields {
   updatedAt: Timestamp | null;
 }
 
-const icons = { approvals: ClipboardCheck, attendance: Clock3, leave: CalendarDays,
-  accounting: Landmark, sales: TrendingUp, inventory: Package };
 const numberFormat = new Intl.NumberFormat('ko-KR');
 const timeFormat = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', dateStyle: 'short', timeStyle: 'short',
@@ -24,7 +24,7 @@ const clockFormat = new Intl.DateTimeFormat('ko-KR', {
   timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 });
 const restricted = (module: ModuleKey) => module === 'sales' || module === 'inventory';
-const navLabels = { approvals: '홈/결재', attendance: '인사', leave: '휴가', accounting: '회계', sales: '영업', inventory: '더보기' };
+const navLabels = { approvals: '결재', attendance: '인사', leave: '휴가', accounting: '회계', sales: '영업', inventory: '더보기' };
 const titles = { approvals: '결재 진행함', attendance: '인사·근태', leave: '근태·휴가 관리',
   accounting: '회계·비용 관리', sales: '영업 실적 및 수주 파이프라인', inventory: '재고·물류/창고관제' };
 const formLabels = { approvals: '결재 요청', attendance: '오늘의 출퇴근', leave: '휴가 신청',
@@ -33,13 +33,13 @@ const formLabels = { approvals: '결재 요청', attendance: '오늘의 출퇴�
 export function Workspace({ user, employee, db, onLogout }: {
   user: User; employee: Employee; db: Firestore; onLogout: () => Promise<void>;
 }) {
-  const [selected, setSelected] = useState<ModuleKey>('approvals');
+  const [selected, setSelected] = useState<ModuleKey | 'home'>('home');
   const [logoutError, setLogoutError] = useState(false);
   const visibleModules = moduleKeys.filter(module => !restricted(module) || manages(employee.role, module));
-  const module = visibleModules.includes(selected) ? selected : 'approvals';
+  const module = selected !== 'home' && visibleModules.includes(selected) ? selected : 'home';
 
   const tab = module === 'leave' ? 'attendance' : module;
-  function navigate(key: ModuleKey) {
+  function navigate(key: ModuleKey | 'home') {
     setSelected(key);
     window.scrollTo(0, 0);
   }
@@ -58,8 +58,11 @@ export function Workspace({ user, employee, db, onLogout }: {
         </div>
       </header>
       <nav aria-label="업무 메뉴" className="portal-nav">
+        <button type="button" aria-current={tab === 'home' ? 'page' : undefined} onClick={() => navigate('home')}>
+          <House className="size-5" aria-hidden /> 홈
+        </button>
         {visibleModules.filter(key => key !== 'leave').map(key => {
-          const Icon = icons[key];
+          const Icon = moduleIcons[key];
           return <button key={key} type="button" aria-current={tab === key ? 'page' : undefined}
             onClick={() => navigate(key)}>
             <Icon className="size-5" aria-hidden /> {navLabels[key]}
@@ -67,14 +70,16 @@ export function Workspace({ user, employee, db, onLogout }: {
         })}
       </nav>
       {logoutError && <p role="alert" className="px-5 pt-3 text-red-700">로그아웃에 실패했습니다.</p>}
-      <Records key={`${module}:${employee.role}`} module={module} uid={user.uid} name={employee.name} db={db}
-        canManage={manages(employee.role, module)} visibleModules={visibleModules} navigate={navigate} />
+      {module === 'home'
+        ? <Dashboard key={employee.role} db={db} uid={user.uid} role={employee.role} categories={visibleModules} navigate={navigate} />
+        : <Records key={`${module}:${employee.role}`} module={module} uid={user.uid} name={employee.name} db={db}
+            canManage={manages(employee.role, module)} navigate={navigate} />}
   </div>;
 }
 
-function Records({ module, uid, name, db, canManage, visibleModules, navigate }: {
+function Records({ module, uid, name, db, canManage, navigate }: {
   module: ModuleKey; uid: string; name: string; db: Firestore; canManage: boolean;
-  visibleModules: ModuleKey[]; navigate: (module: ModuleKey) => void;
+  navigate: (module: ModuleKey) => void;
 }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,8 +102,7 @@ function Records({ module, uid, name, db, canManage, visibleModules, navigate }:
   }, [module]);
 
   useEffect(() => {
-    const records = collection(db, module);
-    return onSnapshot(canManage ? records : query(records, where('owner', '==', uid)), snapshot => {
+    return onSnapshot(moduleRecords(db, module, uid, canManage), snapshot => {
       setRows(snapshot.docs.map(item => ({ ...item.data(), id: item.id }) as Row)
         .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0)));
       setReadError(false);
@@ -176,18 +180,11 @@ function Records({ module, uid, name, db, canManage, visibleModules, navigate }:
   const unavailable = busy || loading || readError;
   const matching = rows.filter(row => (!filter || row.status === filter) &&
     `${row.title} ${row.details} ${row.ownerName}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const total = (items: Row[]) => numberFormat.format(items.reduce((sum, row) => sum + row.value, 0));
   const pending = rows.filter(row => row.status === definition.states[0]);
-  const metrics: [string, string | number][] =
-    module === 'approvals' ? [['승인 대기', pending.length], ['승인 완료', rows.filter(row => row.status === '승인').length], ['반려', rows.filter(row => row.status === '반려').length]]
-      : module === 'sales' ? [['누적 수주액', '₩' + total(rows.filter(row => row.status === '수주'))], ['진행 중인 파이프라인', '₩' + total(rows.filter(row => row.status === '문의' || row.status === '견적'))]]
-      : module === 'accounting' ? [['이번 달 비용 청구', '₩' + total(rows.filter(row => row.date.startsWith(today.slice(0, 7))))], ['정산 대기', pending.length + '건']]
-      : module === 'inventory' ? [['총 보유 품목 (SKU)', rows.length], ['총 재고 수량', total(rows)], ['재고 없음', rows.filter(row => row.value === 0).length + '품목']]
-      : module === 'leave' ? [['신청 내역', rows.length], ['결재 대기', pending.length]]
-      : [['오늘 근태 기록', rows.filter(row => row.date === today).length], ['근무 중', rows.filter(row => row.date === today && row.status === '근무 중').length]];
+  const metrics = getModuleMetrics(module, rows, today);
   return <main className="portal-content">
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-xl font-bold tracking-tight">{module === 'approvals' ? '홈 / 전자결재' : titles[module]}</h1>
+      <h1 className="text-xl font-bold tracking-tight">{module === 'approvals' ? '전자결재' : titles[module]}</h1>
       {module === 'attendance' && <button type="button" className="secondary inline-flex items-center gap-2" onClick={() => navigate('leave')}><CalendarDays size={16} /> 휴가 관리</button>}
       {module !== 'leave' && module !== 'attendance' && <button type="button" className="secondary inline-flex items-center gap-1.5"
         aria-expanded={showForm} onClick={() => setShowForm(!showForm)}><Plus size={16} /> {formLabels[module]}</button>}
@@ -212,17 +209,6 @@ function Records({ module, uid, name, db, canManage, visibleModules, navigate }:
         <p className="mt-2 break-words text-xl font-bold tabular-nums text-[#102a7f]">{unavailable && !busy ? '—' : value}</p>
       </div>)}
     </div>}
-    {module === 'approvals' && <section className="panel mb-4">
-      <h2 className="mb-3 text-sm font-bold">자주 쓰는 업무</h2>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {visibleModules.filter(key => key !== 'approvals' && key !== 'leave').map(key => {
-          const Icon = icons[key];
-          return <button key={key} type="button" className="secondary grid justify-items-center gap-1" onClick={() => navigate(key)}>
-            <Icon size={19} /> {key === 'attendance' ? '근태 체크' : modules[key].label}
-          </button>;
-        })}
-      </div>
-    </section>}
     {module === 'leave' && <LeaveCalendar today={today} start={leaveDates.start} end={leaveDates.end} onSelect={day => {
       setLeaveDates(previous => previous.pickingEnd
         ? { start: day < previous.start ? day : previous.start, end: day < previous.start ? previous.start : day, pickingEnd: false }

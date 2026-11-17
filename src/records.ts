@@ -1,4 +1,9 @@
+import { CalendarDays, ClipboardCheck, Clock3, Landmark, Package, TrendingUp } from 'lucide-react';
+import { collection, query, where, type Firestore } from 'firebase/firestore';
+
 export const moduleKeys = ['approvals', 'attendance', 'leave', 'accounting', 'sales', 'inventory'] as const;
+export const moduleIcons = { approvals: ClipboardCheck, attendance: Clock3, leave: CalendarDays,
+  accounting: Landmark, sales: TrendingUp, inventory: Package };
 export type ModuleKey = typeof moduleKeys[number];
 export type Role = 'admin' | 'manager' | 'finance' | 'sales' | 'warehouse' | 'employee';
 
@@ -28,6 +33,37 @@ export const modules = {
 
 export function manages(role: Role, module: ModuleKey) {
   return role === 'admin' || role === modules[module].access;
+}
+
+export function moduleRecords(db: Firestore, module: ModuleKey, uid: string, canManage: boolean) {
+  const records = collection(db, module);
+  return canManage ? records : query(records, where('owner', '==', uid));
+}
+
+const currency = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' });
+
+export function getModuleMetrics(module: ModuleKey, rows: RecordFields[], today: string): [string, string | number][] {
+  const count = (status: string) => rows.filter(row => row.status === status).length;
+  const amount = (matches: (row: RecordFields) => boolean) =>
+    currency.format(rows.filter(matches).reduce((sum, row) => sum + row.value, 0));
+
+  switch (module) {
+    case 'approvals':
+      return [['승인 대기', count('대기')], ['승인 완료', count('승인')], ['반려', count('반려')]];
+    case 'attendance': {
+      const todayRows = rows.filter(row => row.date === today);
+      return [['오늘 근태 기록', todayRows.length], ['근무 중', todayRows.filter(row => row.status === '근무 중').length]];
+    }
+    case 'leave':
+      return [['신청 내역', rows.length], ['결재 대기', count('대기')]];
+    case 'accounting':
+      return [['이번 달 비용 청구', amount(row => row.date.startsWith(today.slice(0, 7)))], ['정산 대기', count('정산 대기') + '건']];
+    case 'sales':
+      return [['누적 수주액', amount(row => row.status === '수주')], ['진행 중인 파이프라인', amount(row => row.status === '문의' || row.status === '견적')]];
+    case 'inventory':
+      return [['총 보유 품목 (SKU)', rows.length], ['총 재고 수량', rows.reduce((sum, row) => sum + row.value, 0).toLocaleString('ko-KR')],
+        ['재고 없음', rows.filter(row => row.value === 0).length + '품목']];
+  }
 }
 
 export function localDate() {
