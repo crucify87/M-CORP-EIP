@@ -47,6 +47,7 @@ export function LoginView({ auth }: { auth: Auth }) {
   const [message, setMessage] = useState('');
   const captcha = useRef<HTMLDivElement>(null);
   const verifier = useRef<RecaptchaVerifier | undefined>(undefined);
+  const phoneLogin = mode === 'phone' || (mode === 'login' && /^[+\d()\s-]+$/.test(email.trim()));
 
   function clearCaptcha() {
     verifier.current?.clear();
@@ -100,12 +101,12 @@ export function LoginView({ auth }: { auth: Auth }) {
       void authenticate(() => createUserWithEmailAndPassword(auth, address, password), '계정을 만들지 못했습니다. 이메일과 비밀번호를 확인해 주세요.');
       return;
     }
-    if (mode === 'phone') {
+    if (phoneLogin) {
       if (confirmation) {
         void authenticate(() => confirmation.confirm(String(data.get('code')).trim()), '인증번호를 확인해 주세요.', false);
         return;
       }
-      const digits = phone.trim().replace(/[\s()-]/g, '');
+      const digits = (mode === 'phone' ? phone : address).trim().replace(/[\s()-]/g, '');
       const number = /^010\d{8}$/.test(digits) ? '+82' + digits.slice(1) : digits;
       if (!/^\+[1-9]\d{7,14}$/.test(number)) {
         setMessage('휴대전화 번호를 01012345678 또는 +821012345678 형식으로 입력해 주세요.');
@@ -131,27 +132,31 @@ export function LoginView({ auth }: { auth: Auth }) {
 
   const title = { login: '사내 계정으로 로그인', signup: '이메일 회원가입',
     reset: '비밀번호 재설정', phone: '휴대전화로 로그인' }[mode];
-  const submitLabel = { login: '로그인', signup: '계정 만들기', reset: '재설정 메일 보내기',
-    phone: confirmation ? '인증번호 확인' : '인증번호 보내기' }[mode];
+  const submitLabel = phoneLogin ? (confirmation ? '인증번호 확인' : '인증번호 보내기')
+    : { login: '로그인', signup: '계정 만들기', reset: '재설정 메일 보내기', phone: '인증번호 보내기' }[mode];
 
   return <div className="min-h-screen bg-[#f5f7f9]">
     <header className="portal-header"><span className="flex items-center gap-2 font-bold"><Building2 size={22} aria-hidden /> EIP Portal</span></header>
     <main className="mx-auto max-w-xl px-5 py-8 sm:py-12">
       <ShieldCheck className="mb-5 size-14 rounded-xl border border-[#c5cdeb] bg-[#e7ebfa] p-3 text-[#173895]" aria-hidden />
-      <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{mode === 'login' ? '사내 업무 포털 시스템' : title}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{mode === 'login' ? 'M CORP EIP' : title}</h1>
       {mode === 'login' && <p className="mt-2 text-sm text-slate-600">사내 계정으로 로그인해 주세요.</p>}
       {mode === 'signup' && <p className="mt-2 text-sm text-slate-600">업무 포털을 이용하려면 가입 후 사내 관리자의 승인이 필요합니다.</p>}
       <form key={mode} onSubmit={submit} className="panel mt-6 grid gap-4">
-        {mode === 'phone' ? <>
-          <label>휴대전화 번호<input className="field" autoComplete="tel" type="tel" required
-            readOnly={!!confirmation} value={phone} onChange={event => setPhone(event.target.value)} placeholder="01012345678" /></label>
+        {mode === 'phone' ? <label>휴대전화 번호<input className="field" autoComplete="tel" type="tel" required
+          readOnly={busy || !!confirmation} value={phone} onChange={event => setPhone(event.target.value)} placeholder="01012345678" /></label>
+          : <label>{mode === 'login' ? '이메일 또는 휴대전화' : '이메일'}<input className="field" autoComplete="username"
+            type={mode === 'login' ? 'text' : 'email'} required readOnly={busy || !!confirmation}
+            value={email} onChange={event => setEmail(event.target.value)} /></label>}
+        {phoneLogin && <>
           {confirmation ? <label>인증번호<input className="field" name="code" autoComplete="one-time-code"
             inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required /></label>
             : <p className="text-xs text-slate-600">인증 문자 발송을 위해 전화번호가 Google에 전송됩니다.</p>}
           <div ref={captcha} />
-        </> : <label>사내 이메일<input className="field" autoComplete="username" type="email" required
-          value={email} onChange={event => setEmail(event.target.value)} /></label>}
-        {(mode === 'login' || mode === 'signup') && <div>
+          {confirmation && <button type="button" className="justify-self-start text-sm text-blue-800 underline" disabled={busy}
+            onClick={() => { setConfirmation(undefined); setMessage(''); }}>번호 변경 또는 다시 받기</button>}
+        </>}
+        {((mode === 'login' && !phoneLogin) || mode === 'signup') && <div>
           <label htmlFor="portal-password">비밀번호</label>
           <div className="relative">
             <input id="portal-password" className="field pr-12" name="password"
@@ -183,7 +188,6 @@ export function LoginView({ auth }: { auth: Auth }) {
         </div>
       </> : <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm text-blue-800">
         <button type="button" className="underline" disabled={busy} onClick={() => switchMode('login')}>로그인으로 돌아가기</button>
-        {confirmation && <button type="button" className="underline" disabled={busy} onClick={() => switchMode('phone')}>번호 변경 또는 다시 받기</button>}
       </div>}
     </main>
   </div>;
