@@ -45,11 +45,12 @@ export function isApprovalModule(module: ModuleKey) {
 
 export function approvalActions(module: ModuleKey, role: Role, status: string, isOwner: boolean) {
   if (!isApprovalModule(module)) return [];
-  if (status === modules[module].states[0] && (role === 'admin' || (role === 'manager' && !isOwner))) {
-    return [{ label: '반려', status: '팀장 반려' }, { label: '승인', status: '팀장 승인' }];
+  const pending = status === modules[module].states[0];
+  if (role === 'admin' && (pending || isFinalReview(status))) {
+    return [{ label: '반려', status: '반려' }, { label: '승인', status: modules[module].states[1] }];
   }
-  if (isFinalReview(status) && role === 'admin') {
-    return [{ label: '최종 반려', status: '반려' }, { label: '최종 승인', status: modules[module].states[1] }];
+  if (pending && role === 'manager' && !isOwner) {
+    return [{ label: '반려', status: '팀장 반려' }, { label: '승인', status: '팀장 승인' }];
   }
   return [];
 }
@@ -69,15 +70,15 @@ export function getModuleMetrics(module: ModuleKey, rows: RecordFields[], today:
 
   switch (module) {
     case 'approvals':
-      return [['승인 대기', count('대기')], ['최종 검토 대기', finalPending], ['승인 완료', count('승인')], ['반려', count('반려')]];
+      return [['승인 대기', count('대기') + finalPending], ['승인 완료', count('승인')], ['반려', count('반려')]];
     case 'attendance': {
       const todayRows = rows.filter(row => row.date === today);
       return [['오늘 근태 기록', todayRows.length], ['근무 중', todayRows.filter(row => row.status === '근무 중').length]];
     }
     case 'leave':
-      return [['신청 내역', rows.length], ['결재 대기', count('대기')], ['최종 검토 대기', finalPending]];
+      return [['신청 내역', rows.length], ['결재 대기', count('대기') + finalPending]];
     case 'accounting':
-      return [['이번 달 비용 청구', amount(row => row.date.startsWith(today.slice(0, 7)))], ['정산 대기', count('정산 대기') + '건'], ['최종 검토 대기', finalPending]];
+      return [['이번 달 비용 청구', amount(row => row.date.startsWith(today.slice(0, 7)))], ['정산 대기', count('정산 대기') + finalPending + '건']];
     case 'sales':
       return [['누적 수주액', amount(row => row.status === '수주')], ['진행 중인 파이프라인', amount(row => row.status === '문의' || row.status === '견적')]];
     case 'inventory':

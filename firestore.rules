@@ -37,9 +37,9 @@ service cloud.firestore {
         && row.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy']);
     }
     function review(initial, approved) {
-      return ((manager('admin') || (manager('manager') && !mine(resource.data)))
-          && changeStatus(initial, ['팀장 승인', '팀장 반려']))
-        || (manager('admin') && (changeStatus('팀장 승인', [approved, '반려'])
+      return (manager('manager') && !mine(resource.data) && changeStatus(initial, ['팀장 승인', '팀장 반려']))
+        || (manager('admin') && (changeStatus(initial, [approved, '반려'])
+          || changeStatus('팀장 승인', [approved, '반려'])
           || changeStatus('팀장 반려', [approved, '반려'])));
     }
 
