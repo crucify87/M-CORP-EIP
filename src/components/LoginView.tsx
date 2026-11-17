@@ -5,7 +5,7 @@ import {
   signInWithEmailAndPassword, signInWithPhoneNumber, signInWithPopup,
   type Auth, type ConfirmationResult,
 } from 'firebase/auth';
-import { Building2 } from 'lucide-react';
+import { Building2, Eye, EyeOff, LockKeyhole, ShieldCheck, Smartphone } from 'lucide-react';
 
 type Mode = 'login' | 'signup' | 'reset' | 'phone';
 
@@ -42,6 +42,7 @@ export function LoginView({ auth }: { auth: Auth }) {
   const [phone, setPhone] = useState('');
   const [confirmation, setConfirmation] = useState<ConfirmationResult>();
   const [remember, setRemember] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const captcha = useRef<HTMLDivElement>(null);
@@ -61,6 +62,7 @@ export function LoginView({ auth }: { auth: Auth }) {
   function switchMode(next: Mode) {
     clearCaptcha();
     setConfirmation(undefined);
+    setShowPassword(false);
     setMessage('');
     setMode(next);
   }
@@ -132,13 +134,14 @@ export function LoginView({ auth }: { auth: Auth }) {
   const submitLabel = { login: '로그인', signup: '계정 만들기', reset: '재설정 메일 보내기',
     phone: confirmation ? '인증번호 확인' : '인증번호 보내기' }[mode];
 
-  return <main className="grid min-h-screen place-items-center bg-slate-100 p-5">
-    <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-      <Building2 className="mb-5 size-10 rounded-xl bg-blue-800 p-2 text-white" aria-hidden />
-      <h1 className="text-2xl font-bold text-slate-900">M CORP EIP</h1>
-      <p className="mt-2 text-sm text-slate-600">{title}</p>
+  return <div className="min-h-screen bg-[#f5f7f9]">
+    <header className="portal-header"><span className="flex items-center gap-2 font-bold"><Building2 size={22} aria-hidden /> ERP Portal</span></header>
+    <main className="mx-auto max-w-xl px-5 py-8 sm:py-12">
+      <ShieldCheck className="mb-5 size-14 rounded-xl border border-[#c5cdeb] bg-[#e7ebfa] p-3 text-[#173895]" aria-hidden />
+      <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{mode === 'login' ? '사내 업무 포털 시스템' : title}</h1>
+      {mode === 'login' && <p className="mt-2 text-sm text-slate-600">사내 계정으로 로그인해 주세요.</p>}
       {mode === 'signup' && <p className="mt-2 text-sm text-slate-600">업무 포털을 이용하려면 가입 후 사내 관리자의 승인이 필요합니다.</p>}
-      <form key={mode} onSubmit={submit} className="mt-6 grid gap-4">
+      <form key={mode} onSubmit={submit} className="panel mt-6 grid gap-4">
         {mode === 'phone' ? <>
           <label>휴대전화 번호<input className="field" autoComplete="tel" type="tel" required
             readOnly={!!confirmation} value={phone} onChange={event => setPhone(event.target.value)} placeholder="01012345678" /></label>
@@ -148,23 +151,31 @@ export function LoginView({ auth }: { auth: Auth }) {
           <div ref={captcha} />
         </> : <label>사내 이메일<input className="field" autoComplete="username" type="email" required
           value={email} onChange={event => setEmail(event.target.value)} /></label>}
-        {(mode === 'login' || mode === 'signup') && <label>비밀번호<input className="field" name="password"
-          autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} type="password"
-          minLength={mode === 'signup' ? 6 : undefined} required /></label>}
+        {(mode === 'login' || mode === 'signup') && <div>
+          <label htmlFor="portal-password">비밀번호</label>
+          <div className="relative">
+            <input id="portal-password" className="field pr-12" name="password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'} type={showPassword ? 'text' : 'password'}
+              minLength={mode === 'signup' ? 6 : undefined} required />
+            <button type="button" aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시'} className="icon-button absolute inset-y-0 right-1"
+              onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>
+          </div>
+        </div>}
         {mode === 'signup' && <label>비밀번호 확인<input className="field" name="confirmPassword"
           autoComplete="new-password" type="password" required /></label>}
         {mode !== 'reset' && !confirmation && <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" disabled={busy} checked={remember} onChange={event => setRemember(event.target.checked)} /> 로그인 유지
         </label>}
-        <button className="primary" disabled={busy}>{busy ? '처리 중…' : submitLabel}</button>
+        <button className="primary flex min-h-12 items-center justify-center gap-2" disabled={busy}>{mode === 'login' && <LockKeyhole size={17} />} {busy ? '처리 중…' : submitLabel}</button>
         {message && <p role="status" className="text-sm text-slate-700">{message}</p>}
       </form>
       {mode === 'login' ? <>
-        <div className="mt-5 grid gap-2 border-t border-slate-200 pt-5">
-          <button type="button" className="secondary" disabled={busy} onClick={() => {
+        <div className="mt-6 flex items-center gap-3 text-sm text-slate-500 before:h-px before:flex-1 before:bg-slate-200 after:h-px after:flex-1 after:bg-slate-200">간편 인증</div>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button type="button" className="secondary min-h-12" disabled={busy} onClick={() => {
             void authenticate(() => signInWithPopup(auth, new GoogleAuthProvider()), 'Google 로그인에 실패했습니다.');
           }}>Google로 로그인</button>
-          <button type="button" className="secondary" disabled={busy} onClick={() => switchMode('phone')}>휴대전화로 로그인</button>
+          <button type="button" className="secondary flex min-h-12 items-center justify-center gap-1" disabled={busy} onClick={() => switchMode('phone')}><Smartphone size={16} /> 휴대전화 로그인</button>
         </div>
         <div className="mt-5 flex flex-wrap justify-between gap-3 text-sm text-blue-800">
           <button type="button" className="underline" disabled={busy} onClick={() => switchMode('reset')}>비밀번호를 잊으셨나요?</button>
@@ -174,6 +185,6 @@ export function LoginView({ auth }: { auth: Auth }) {
         <button type="button" className="underline" disabled={busy} onClick={() => switchMode('login')}>로그인으로 돌아가기</button>
         {confirmation && <button type="button" className="underline" disabled={busy} onClick={() => switchMode('phone')}>번호 변경 또는 다시 받기</button>}
       </div>}
-    </section>
-  </main>;
+    </main>
+  </div>;
 }
