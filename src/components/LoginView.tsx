@@ -135,7 +135,7 @@ export function LoginView({ auth }: { auth: Auth }) {
     phone: confirmation ? '인증번호 확인' : '인증번호 보내기' }[mode];
 
   return <div className="min-h-screen bg-[#f5f7f9]">
-    <header className="portal-header"><span className="flex items-center gap-2 font-bold"><Building2 size={22} aria-hidden /> ERP Portal</span></header>
+    <header className="portal-header"><span className="flex items-center gap-2 font-bold"><Building2 size={22} aria-hidden /> EIP Portal</span></header>
     <main className="mx-auto max-w-xl px-5 py-8 sm:py-12">
       <ShieldCheck className="mb-5 size-14 rounded-xl border border-[#c5cdeb] bg-[#e7ebfa] p-3 text-[#173895]" aria-hidden />
       <h1 className="text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">{mode === 'login' ? '사내 업무 포털 시스템' : title}</h1>

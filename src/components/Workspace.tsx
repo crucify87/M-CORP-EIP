@@ -48,7 +48,7 @@ export function Workspace({ user, employee, db, onLogout }: {
         <div className="flex min-w-0 items-center gap-2">
           {module === 'leave' && <button type="button" aria-label="인사·근태로 돌아가기" className="icon-button" onClick={() => navigate('attendance')}><ArrowLeft size={18} /></button>}
           <Building2 size={21} aria-hidden />
-          <span className="font-bold tracking-tight">ERP Portal</span>
+          <span className="font-bold tracking-tight">EIP Portal</span>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate rounded-full bg-[#e7ebfa] px-3 py-1 text-xs font-semibold text-[#102a7f]">{employee.name}</span>
