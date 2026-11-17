@@ -37,12 +37,10 @@ service cloud.firestore {
         && row.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'updatedBy']);
     }
     function review(initial, approved) {
-      return !mine(resource.data) && (
-        (manager('manager') && changeStatus(initial, ['팀장 승인', '팀장 반려']))
-        || (manager('admin') && resource.data.updatedBy != request.auth.uid
-          && (changeStatus('팀장 승인', [approved, '반려'])
-            || changeStatus('팀장 반려', [approved, '반려'])))
-      );
+      return ((manager('admin') || (manager('manager') && !mine(resource.data)))
+          && changeStatus(initial, ['팀장 승인', '팀장 반려']))
+        || (manager('admin') && (changeStatus('팀장 승인', [approved, '반려'])
+          || changeStatus('팀장 반려', [approved, '반려'])));
     }
 
     match /employees/{uid} {

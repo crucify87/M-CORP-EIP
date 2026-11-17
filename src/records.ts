@@ -43,12 +43,12 @@ export function isApprovalModule(module: ModuleKey) {
   return module === 'approvals' || module === 'leave' || module === 'accounting';
 }
 
-export function approvalActions(module: ModuleKey, role: Role, status: string, isOwner: boolean, handledFirst: boolean) {
-  if (!isApprovalModule(module) || isOwner) return [];
-  if (status === modules[module].states[0] && (role === 'manager' || role === 'admin')) {
+export function approvalActions(module: ModuleKey, role: Role, status: string, isOwner: boolean) {
+  if (!isApprovalModule(module)) return [];
+  if (status === modules[module].states[0] && (role === 'admin' || (role === 'manager' && !isOwner))) {
     return [{ label: '반려', status: '팀장 반려' }, { label: '승인', status: '팀장 승인' }];
   }
-  if (isFinalReview(status) && role === 'admin' && !handledFirst) {
+  if (isFinalReview(status) && role === 'admin') {
     return [{ label: '최종 반려', status: '반려' }, { label: '최종 승인', status: modules[module].states[1] }];
   }
   return [];

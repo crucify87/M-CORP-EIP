@@ -12,7 +12,6 @@ interface Row extends RecordFields {
   id: string;
   owner: string;
   ownerName: string;
-  updatedBy: string;
   createdAt: Timestamp | null;
   updatedAt: Timestamp | null;
 }
@@ -272,15 +271,14 @@ function Records({ module, uid, name, db, role, navigate }: {
           const nextSalesStatus = statuses[statuses.indexOf(row.status) + 1];
           const actions = module === 'sales'
             ? (nextSalesStatus ? Array.from(new Set([nextSalesStatus, '종료']), status => ({ label: status, status })) : [])
-            : approvalActions(module, role, row.status, row.owner === uid, row.updatedBy === uid);
+            : approvalActions(module, role, row.status, row.owner === uid);
           const awaitingFinal = isFinalReview(row.status);
           const awaitingReview = approvalModule && (row.status === statuses[0] || awaitingFinal);
           const approvalHint = row.owner === uid ? '본인이 올린 신청은 다른 책임자가 처리합니다.'
-            : awaitingFinal && row.updatedBy === uid ? '다른 최종관리자의 검토를 기다리고 있습니다.'
             : awaitingFinal ? '최종관리자의 검토를 기다리고 있습니다.' : '팀장 또는 최종관리자의 검토를 기다리고 있습니다.';
           return <li key={row.id} className="panel grid gap-3">
             <div className="min-w-0 break-words">
-              <p className="mb-2"><span className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">{awaitingFinal ? `최종 검토 대기 · ${row.status}` : row.status === '대기' ? '승인 대기' : row.status}</span></p>
+              <p className="mb-2"><span className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-900">{awaitingFinal ? `최종 검토 대기 · ${row.status.replace('팀장', '1차')}` : row.status === '대기' ? '승인 대기' : row.status}</span></p>
               <p className="font-bold">{row.title}</p>
               <p className="mt-1 text-sm text-slate-600">{row.ownerName} · {row.date}{row.endDate && ` ~ ${row.endDate}`}{definition.value && ` · ${numberFormat.format(row.value)}${module === 'inventory' ? '개' : '원'}`}</p>
               {row.details && <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{row.details}</p>}
