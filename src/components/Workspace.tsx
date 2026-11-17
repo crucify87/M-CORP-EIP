@@ -6,6 +6,7 @@ import type { User } from 'firebase/auth';
 import { approvalActions, getModuleMetrics, isApprovalModule, isFinalReview, localDate, manages, moduleIcons, moduleKeys, moduleRecords, modules,
   type Employee, type ModuleKey, type RecordFields, type Role } from '../records';
 import { Dashboard } from './Dashboard';
+import { AttendanceSheet } from './AttendanceSheet';
 import { LeaveCalendar } from './LeaveCalendar';
 
 interface Row extends RecordFields {
@@ -267,6 +268,8 @@ function Records({ module, uid, name, db, role, navigate }: {
     {module === 'attendance' && <div className="metric-grid mb-4">
       {metrics.map(([label, value]) => <div key={label} className="panel"><p className="text-xs text-slate-600">{label}</p><p className="mt-2 text-xl font-bold text-[#102a7f]">{loading || readError ? '—' : value}</p></div>)}
     </div>}
+    {module === 'attendance' && <AttendanceSheet db={db} uid={uid} name={name} today={today}
+      canManage={canManage} rows={rows} loading={loading} readError={readError} />}
     <section className={module === 'approvals' || operationsList ? 'panel approval-list' : 'mt-5'}>
       <h2 className="mb-3 font-bold">{{
         approvals: '결재 진행함', attendance: '근태 현황', leave: '휴가 신청 및 결재 이력',

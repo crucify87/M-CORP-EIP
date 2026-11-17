@@ -45,6 +45,7 @@ service cloud.firestore {
 
     match /employees/{uid} {
       allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if manager('manager') && resource.data.active == true;
     }
     match /notices/{id} {
       allow read: if active();
