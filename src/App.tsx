@@ -37,13 +37,15 @@ export default function App() {
       onLogout={() => signOut(connection.auth)} />;
   }
 
+  const needsAccess = user && profile?.uid === user.uid && !profile.employee && !error;
   const message = !firebase ? 'Firebase 웹 앱 설정이 필요합니다.'
-    : error || (user && profile?.uid === user.uid ? '접근 권한이 없습니다. 사내 관리자에게 문의해 주세요.' : '계정 확인 중…');
+    : error || (needsAccess ? '업무 포털을 이용하려면 아래 계정 ID를 사내 관리자에게 전달해 주세요.' : '계정 확인 중…');
   return <main className="grid min-h-screen place-items-center p-5">
     <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8">
       <Building2 className="mb-4 size-8 text-blue-800" aria-hidden />
       <h1 className="text-xl font-bold">M CORP EIP</h1>
       <p role="status" className="mt-3 text-sm text-slate-600">{message}</p>
+      {needsAccess && <p className="mt-3 break-all rounded-lg bg-slate-100 p-3 font-mono text-xs">{user.uid}</p>}
       {connection && user && <button className="secondary mt-5" onClick={() => {
         void signOut(connection.auth).catch(() => setError('로그아웃에 실패했습니다.'));
       }}>로그아웃</button>}
