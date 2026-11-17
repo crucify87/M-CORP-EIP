@@ -118,7 +118,7 @@ export function AttendanceSheet({ db, uid, employee, today, canManage, rows, loa
       </div>
     </div>
     <p className="my-3 text-sm text-slate-600">좌우로 스크롤하면 31일까지 볼 수 있습니다.</p>
-    <p className="mb-3 text-xs text-slate-600">잔여 일수 = 누적 부여 일수 − 승인된 연차·월차의 평일 수</p>
+    <p className="mb-3 text-xs text-slate-600">연차·월차는 잔여 일수, 반차는 승인된 사용 일수입니다. 반차는 평일 하루당 0.5일로 표시합니다.</p>
     {leave === 'error' && <p role="alert" className="mb-3 text-sm text-red-700">휴가 기록을 불러오지 못했습니다.</p>}
     {message && <p role="status" className="mb-3 text-sm text-slate-700">{message}</p>}
     {editing && <form key={editing.uid} className="mb-4 grid gap-3 rounded-xl border border-slate-200 p-3 sm:grid-cols-2"
@@ -140,6 +140,9 @@ export function AttendanceSheet({ db, uid, employee, today, canManage, rows, loa
         <thead>
           <tr>
             <th scope="col">성명</th>
+            <th scope="col">연차<span className="block text-xs font-normal">잔여</span></th>
+            <th scope="col">월차<span className="block text-xs font-normal">잔여</span></th>
+            <th scope="col">반차<span className="block text-xs font-normal">사용</span></th>
             {days.map(({ day, date, weekday }) => <th key={day} scope="col" data-today={date === today || undefined}
               data-muted={!weekday || undefined}>
               {day}일<span className="block text-xs font-normal">{weekday || '—'}</span>
@@ -152,16 +155,17 @@ export function AttendanceSheet({ db, uid, employee, today, canManage, rows, loa
             const approvedLeave = person ? leaveByPerson.get(person.uid) ?? [] : [];
             const annualUsed = usedLeaveDays(approvedLeave, 'annual');
             const monthlyUsed = usedLeaveDays(approvedLeave, 'monthly');
+            const halfUsed = usedLeaveDays(approvedLeave, 'half');
+            const showBalance = Boolean(person && Array.isArray(leave));
             return <tr key={person?.uid ?? index}>
               <th scope="row">{person ? <>
                 <span className="block">{person.name}</span>
-                {Array.isArray(leave) && <span className="block text-xs font-normal text-slate-700">
-                  연차 {person.annualDays === undefined ? '미설정' : (person.annualDays - annualUsed) + '일'}<br />
-                  월차 {person.monthlyDays === undefined ? '미설정' : (person.monthlyDays - monthlyUsed) + '일'}
-                </span>}
                 {employee.role === 'admin' && <button type="button" className="mt-1 text-xs text-blue-700 underline"
                   disabled={saving} onClick={() => { setEditing(person); setMessage(''); document.getElementById('attendance-sheet-heading')?.scrollIntoView({ block: 'center' }); }}>부여 일수 설정</button>}
               </> : '—'}</th>
+              <td className="tabular-nums">{showBalance ? person?.annualDays === undefined ? '미설정' : (person.annualDays - annualUsed) + '일' : '—'}</td>
+              <td className="tabular-nums">{showBalance ? person?.monthlyDays === undefined ? '미설정' : (person.monthlyDays - monthlyUsed) + '일' : '—'}</td>
+              <td className="tabular-nums">{showBalance ? halfUsed + '일' : '—'}</td>
               {days.map(({ day, date, weekday }) => {
                 const row = person && weekday ? records.get(person.uid + '/' + date) : undefined;
                 const leaveTypes = weekday ? [...new Set(approvedLeave.filter(entry =>

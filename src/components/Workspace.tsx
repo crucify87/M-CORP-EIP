@@ -253,7 +253,7 @@ function Records({ module, uid, name, db, employee, navigate }: {
         <label>{definition.title}<input className="field" name="title" list={module === 'leave' ? 'leave-types' : undefined}
           required maxLength={module === 'inventory' ? 64 : 120} /></label>
         {module === 'leave' && <datalist id="leave-types">
-          <option value="월차" /><option value="연차" /><option value="조퇴" />
+          <option value="월차" /><option value="연차" /><option value="반차" /><option value="조퇴" />
         </datalist>}
         {definition.value && <label>{definition.value}<input className="field" type="number" name="value" min={module === 'accounting' ? 1 : 0} max="1000000000000" required /></label>}
         {module === 'leave' ? <>

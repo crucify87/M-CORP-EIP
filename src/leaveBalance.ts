@@ -1,4 +1,4 @@
-export type LeaveQuotaType = 'annual' | 'monthly';
+export type LeaveQuotaType = 'annual' | 'monthly' | 'half';
 
 export interface ApprovedLeave {
   owner: string;
@@ -14,6 +14,7 @@ export function leaveQuotaType(title: string): LeaveQuotaType | undefined {
   const type = title.trim();
   if (type === '연차' || type.startsWith('연차 ')) return 'annual';
   if (type === '월차' || type.startsWith('월차 ')) return 'monthly';
+  if (/^(?:(?:오전|오후)\s*)?반차(?:$|\s|\()/.test(type)) return 'half';
 }
 
 export function usedLeaveDays(leave: ApprovedLeave[], type: LeaveQuotaType) {
@@ -35,5 +36,5 @@ export function usedLeaveDays(leave: ApprovedLeave[], type: LeaveQuotaType) {
     }
     lastDay = end;
   }
-  return used;
+  return type === 'half' ? used / 2 : used;
 }
